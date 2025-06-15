@@ -2,8 +2,6 @@
 
 package otelsdk
 
-//go:generate wget --quiet -N -O grafana-opentelemetry-java.jar https://github.com/grafana/grafana-opentelemetry-java/releases/download/v2.13.2.1/grafana-opentelemetry-java.jar
-
 import (
 	"bufio"
 	_ "embed"
