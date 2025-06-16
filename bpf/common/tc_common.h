@@ -137,22 +137,25 @@ static __always_inline u32 bpf_memstr(const char *haystack,
                                       int haystack_len,
                                       const char *needle,
                                       int needle_len) {
-    if (needle_len == 0 || haystack_len < needle_len)
+    if (needle_len == 0 || haystack_len < needle_len) {
         return INVALID_POS;
+    }
     for (int i = 0; i <= haystack_len - needle_len; i++) {
         int found = 1;
 #pragma unroll
         // max needle length
         for (int j = 0; j < MAX_NEEDLE_LEN; j++) {
-            if (j >= needle_len)
+            if (j >= needle_len) {
                 break;
+            }
             if (haystack[i + j] != needle[j]) {
                 found = 0;
                 break;
             }
         }
-        if (found)
+        if (found) {
             return (u32)i;
+        }
     }
     return INVALID_POS;
 }

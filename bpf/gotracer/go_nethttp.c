@@ -295,8 +295,9 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
     const unsigned char *buf = (const unsigned char *)GO_PARAM1(ctx);
 
     u8 temp[HTTP_HEADER_MAX_LEN];
-    if (len > sizeof(temp))
+    if (len > sizeof(temp)) {
         len = sizeof(temp);
+    }
     bpf_probe_read(temp, len, buf);
 
     bpf_dbg_printk("goroutine_addr %lx", goroutine_addr);
