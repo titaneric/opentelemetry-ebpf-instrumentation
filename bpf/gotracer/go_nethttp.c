@@ -294,11 +294,16 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
     u64 len = (u64)GO_PARAM2(ctx);
     const unsigned char *buf = (const unsigned char *)GO_PARAM1(ctx);
 
-    u8 temp[HTTP_HEADER_MAX_LEN];
-    if (len > sizeof(temp)) {
-        len = sizeof(temp);
+    // avoid variable-length buffer reads to work on older kernels such as 5.15 or earlier
+    u8 temp[HTTP_HEADER_MAX_LEN] = {};
+    u64 safe_len = len > HTTP_HEADER_MAX_LEN ? HTTP_HEADER_MAX_LEN : len;
+
+#pragma unroll
+    for (int i = 0; i < HTTP_HEADER_MAX_LEN; i++) {
+        if (i < safe_len) {
+            bpf_probe_read(&temp[i], 1, buf + i);
+        }
     }
-    bpf_probe_read(temp, len, buf);
 
     bpf_dbg_printk("goroutine_addr %lx", goroutine_addr);
     go_addr_key_t g_key = {};
@@ -315,7 +320,7 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
     }
     server_http_func_invocation_t *inv = bpf_map_lookup_elem(&ongoing_http_server_requests, &g_key);
 
-    if (len >= w3c_header_length &&
+    if (safe_len >= w3c_header_length &&
         !bpf_memicmp((const char *)temp, "traceparent: ", w3c_value_start)) {
         u8 *traceparent_start = temp + w3c_value_start;
         if (inv) {
@@ -325,7 +330,7 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
             update_traceparent(&minimal_inv, traceparent_start);
             bpf_map_update_elem(&ongoing_http_server_requests, &g_key, &minimal_inv, BPF_ANY);
         }
-    } else if (len >= content_type_header_length &&
+    } else if (safe_len >= content_type_header_length &&
                !bpf_memicmp((const char *)temp, "content-type: ", content_type_value_start)) {
         u8 *content_type_start = temp + content_type_value_start;
         if (inv) {
