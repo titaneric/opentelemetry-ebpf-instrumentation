@@ -140,11 +140,11 @@ static __always_inline u32 bpf_memstr(const unsigned char *haystack,
     if (needle_len == 0 || haystack_len < needle_len) {
         return INVALID_POS;
     }
-    for (int i = 0; i <= haystack_len - needle_len; i++) {
-        int found = 1;
+    for (u32 i = 0; i <= haystack_len - needle_len; i++) {
+        u8 found = 1;
 #pragma unroll
         // max needle length
-        for (int j = 0; j < MAX_NEEDLE_LEN; j++) {
+        for (u8 j = 0; j < MAX_NEEDLE_LEN; j++) {
             if (j >= needle_len) {
                 break;
             }
@@ -154,7 +154,7 @@ static __always_inline u32 bpf_memstr(const unsigned char *haystack,
             }
         }
         if (found) {
-            return (u32)i;
+            return i;
         }
     }
     return INVALID_POS;
