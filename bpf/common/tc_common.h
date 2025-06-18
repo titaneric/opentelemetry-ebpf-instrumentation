@@ -133,10 +133,10 @@ static __always_inline u32 sk_msg_local_port(struct sk_msg_md *ctx) {
 }
 
 // find the needle in the haystack, return the position of the first occurrence, return -1 if not found
-static __always_inline u32 bpf_memstr(const char *haystack,
-                                      int haystack_len,
-                                      const char *needle,
-                                      int needle_len) {
+static __always_inline u32 bpf_memstr(const unsigned char *haystack,
+                                      u32 haystack_len,
+                                      const unsigned char *needle,
+                                      u32 needle_len) {
     if (needle_len == 0 || haystack_len < needle_len) {
         return INVALID_POS;
     }

@@ -35,7 +35,9 @@ static __always_inline u8 bpf_isspace(char c) {
 
 // Returns the offset of the next JSON value after skipping whitespace and colon.
 // If not found, returns body_len.
-static __always_inline u32 json_value_offset(const char *body, u32 body_len, u32 start_pos) {
+static __always_inline u32 json_value_offset(const unsigned char *body,
+                                             u32 body_len,
+                                             u32 start_pos) {
     u32 pos = start_pos;
     while (pos < body_len && (bpf_isspace(body[pos]) || body[pos] == ':')) {
         pos++;
@@ -45,16 +47,18 @@ static __always_inline u32 json_value_offset(const char *body, u32 body_len, u32
 
 // Returns the position of the first occurrence of a string in a JSON body.
 // If not found, returns INVALID_POS.
-static __always_inline u32 json_str_value(const char *body,
+static __always_inline u32 json_str_value(const unsigned char *body,
                                           u32 body_len,
-                                          const char *str,
+                                          const unsigned char *str,
                                           u32 str_len) {
     return bpf_memstr(body, body_len, str, str_len);
 }
 
 // Returns the end position (index of closing quote) of a JSON string value.
 // If not found, returns body_len.
-static __always_inline u32 json_str_value_end(const char *body, u32 body_len, u32 value_start) {
+static __always_inline u32 json_str_value_end(const unsigned char *body,
+                                              u32 body_len,
+                                              u32 value_start) {
     // find_first_pos_of expects unsigned char*, so cast accordingly
     return value_start + find_first_pos_of((unsigned char *)(body + value_start),
                                            (unsigned char *)(body + body_len),
@@ -67,7 +71,7 @@ static __always_inline u32 json_str_value_end(const char *body, u32 body_len, u3
  * Returns the number of bytes copied (excluding null terminator), or 0 on error.
  */
 static __always_inline u32 copy_json_string_value(
-    const char *body, u32 value_start, u32 value_end, char *dest_buf, u32 dest_buf_size) {
+    const unsigned char *body, u32 value_start, u32 value_end, char *dest_buf, u32 dest_buf_size) {
     u32 value_len = value_end - value_start;
     if (value_len <= 0) {
         return 0;
@@ -88,8 +92,9 @@ static __always_inline u32 copy_json_string_value(
 }
 
 // Looks for '"jsonrpc":"2.0"'
-static __always_inline u32 is_jsonrpc2_body(const char *body, u32 body_len) {
-    u32 key_pos = json_str_value(body, body_len, k_jsonrpc_key, k_jsonrpc_key_len);
+static __always_inline u32 is_jsonrpc2_body(const unsigned char *body, u32 body_len) {
+    u32 key_pos =
+        json_str_value(body, body_len, (const unsigned char *)k_jsonrpc_key, k_jsonrpc_key_len);
     if (key_pos == INVALID_POS) {
         return 0;
     }
@@ -102,8 +107,10 @@ static __always_inline u32 is_jsonrpc2_body(const char *body, u32 body_len) {
         return 0;
     }
 
-    u32 val_pos = json_str_value(
-        body + val_search_start, body_len - val_search_start, k_jsonrpc_val, k_jsonrpc_val_len);
+    u32 val_pos = json_str_value(body + val_search_start,
+                                 body_len - val_search_start,
+                                 (const unsigned char *)k_jsonrpc_val,
+                                 k_jsonrpc_val_len);
     // The jsonrpc value should start immediately after the opening quote
     if (val_pos == INVALID_POS || val_pos != 0) {
         return 0;
@@ -117,10 +124,11 @@ static __always_inline u32 is_jsonrpc2_body(const char *body, u32 body_len) {
 // Extracts the value of the "method" key from a JSON-RPC 2.0 body.
 // Returns the length of the method value, or 0 if not found or error.
 // method_buf must be at least method_buf_len bytes.
-static __always_inline u32 extract_jsonrpc2_method(const char *body,
+static __always_inline u32 extract_jsonrpc2_method(const unsigned char *body,
                                                    u32 body_len,
                                                    char *method_buf) {
-    u32 key_pos = json_str_value(body, body_len, k_method_key, k_method_key_len);
+    u32 key_pos =
+        json_str_value(body, body_len, (const unsigned char *)k_method_key, k_method_key_len);
     if (key_pos == INVALID_POS) {
         return 0;
     }
