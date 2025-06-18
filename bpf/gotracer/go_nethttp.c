@@ -274,13 +274,13 @@ int beyla_uprobe_http2Server_processHeaders(struct pt_regs *ctx) {
 }
 
 static __always_inline void update_traceparent(server_http_func_invocation_t *inv,
-                                               u8 *header_start) {
+                                               const unsigned char *header_start) {
     decode_go_traceparent(header_start, inv->tp.trace_id, inv->tp.parent_id, &inv->tp.flags);
     bpf_dbg_printk("Found traceparent in header %s", header_start);
 }
 
 static __always_inline void update_content_type(server_http_func_invocation_t *inv,
-                                                u8 *header_start) {
+                                                const unsigned char *header_start) {
     __builtin_memset(inv->content_type, 0, sizeof(inv->content_type));
     __builtin_memcpy(inv->content_type, header_start, sizeof(inv->content_type));
     bpf_dbg_printk("Found content-type in header %s", inv->content_type);
