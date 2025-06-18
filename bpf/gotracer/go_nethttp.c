@@ -1266,10 +1266,10 @@ int beyla_uprobe_bodyReadReturn(struct pt_regs *ctx) {
             if (read_go_str_n(
                     "http body", (void *)invocation->body_addr, n, body_buf, sizeof(body_buf))) {
                 bpf_dbg_printk("body is %s", body_buf);
-                if (is_jsonrpc2_body(body_buf, sizeof(body_buf))) {
+                if (is_jsonrpc2_body((const unsigned char *)body_buf, sizeof(body_buf))) {
                     char method_buf[JSONRPC_METHOD_BUF_SIZE] = {};
-                    u32 method_len =
-                        extract_jsonrpc2_method(body_buf, sizeof(body_buf), method_buf);
+                    u32 method_len = extract_jsonrpc2_method(
+                        (const unsigned char *)body_buf, sizeof(body_buf), method_buf);
                     if (method_len > 0) {
                         bpf_dbg_printk("JSON-RPC method: %s", method_buf);
                         read_go_str_n("JSON-RPC method",
