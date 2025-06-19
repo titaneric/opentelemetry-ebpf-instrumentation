@@ -27,6 +27,7 @@
 #include <gotracer/go_stream_key.h>
 #include <gotracer/hpack.h>
 #include <gotracer/protocol_jsonrpc.h>
+#include <gotracer/maps/jsonrpc_jump_table.h>
 
 #include <logger/bpf_dbg.h>
 
@@ -34,6 +35,8 @@
 #include <maps/go_ongoing_http_client_requests.h>
 
 #include <pid/pid_helpers.h>
+
+enum { k_tail_jsonrpc = 0 };
 
 typedef struct http_client_data {
     s64 content_length;
@@ -1242,8 +1245,16 @@ int beyla_uprobe_bodyRead(struct pt_regs *ctx) {
 
 SEC("uprobe/bodyReadRet")
 int beyla_uprobe_bodyReadReturn(struct pt_regs *ctx) {
-    void *goroutine_addr = GOROUTINE_PTR(ctx);
     bpf_dbg_printk("=== uprobe/proc body read returns goroutine === ");
+    bpf_tail_call(ctx, &jsonrpc_jump_table, k_tail_jsonrpc);
+    return 0;
+}
+
+//k_tail_jsonrpc
+SEC("uprobe/readJsonrpcMethod")
+int beyla_read_jsonrpc_method(struct pt_regs *ctx) {
+    void *goroutine_addr = GOROUTINE_PTR(ctx);
+    bpf_dbg_printk("=== uprobe/proc read jsonrpc method === ");
     go_addr_key_t g_key = {};
     go_addr_key_from_id(&g_key, goroutine_addr);
 
