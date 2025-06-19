@@ -70,8 +70,11 @@ static __always_inline u32 json_str_value_end(const unsigned char *body,
  * Ensures null-termination and does not exceed dest_buf_size.
  * Returns the number of bytes copied (excluding null terminator), or 0 on error.
  */
-static __always_inline u32 copy_json_string_value(
-    const unsigned char *body, u32 value_start, u32 value_end, char *dest_buf, u32 dest_buf_size) {
+static __always_inline u32 copy_json_string_value(const unsigned char *body,
+                                                  u32 value_start,
+                                                  u32 value_end,
+                                                  unsigned char *dest_buf,
+                                                  u32 dest_buf_size) {
     u32 value_len = value_end - value_start;
     if (value_len <= 0) {
         return 0;
@@ -126,7 +129,7 @@ static __always_inline u32 is_jsonrpc2_body(const unsigned char *body, u32 body_
 // method_buf must be at least method_buf_len bytes.
 static __always_inline u32 extract_jsonrpc2_method(const unsigned char *body,
                                                    u32 body_len,
-                                                   char *method_buf) {
+                                                   unsigned char *method_buf) {
     u32 key_pos =
         json_str_value(body, body_len, (const unsigned char *)k_method_key, k_method_key_len);
     if (key_pos == INVALID_POS) {
