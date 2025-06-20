@@ -79,6 +79,18 @@ struct {
     __uint(max_entries, MAX_CONCURRENT_REQUESTS);
 } ongoing_http_server_requests SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __type(key, u32);
+    __type(value, unsigned char[HTTP_HEADER_MAX_LEN]);
+    __uint(max_entries, 1);
+} temp_mem_scratch SEC(".maps");
+
+static __always_inline unsigned char *temp_mem() {
+    const u32 zero = 0;
+    return bpf_map_lookup_elem(&temp_mem_scratch, &zero);
+}
+
 /* HTTP Server */
 
 // This instrumentation attaches uprobe to the following function:
@@ -294,16 +306,12 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
     u64 len = (u64)GO_PARAM2(ctx);
     u8 *buf = (u8 *)GO_PARAM1(ctx);
 
-    // avoid variable-length buffer reads to work on older kernels such as 5.15 or earlier
-    u8 temp[HTTP_HEADER_MAX_LEN] = {};
-    u64 safe_len = len > HTTP_HEADER_MAX_LEN ? HTTP_HEADER_MAX_LEN : len;
-
-#pragma unroll
-    for (int i = 0; i < HTTP_HEADER_MAX_LEN; i++) {
-        if (i < safe_len) {
-            bpf_probe_read(&temp[i], 1, buf + i);
-        }
-    }
+    unsigned char *temp = temp_mem();
+    const u32 safe_len = len > HTTP_HEADER_MAX_LEN ? HTTP_HEADER_MAX_LEN : len;
+    if (!temp || bpf_probe_read_user(temp, safe_len, buf) != 0) {
+        bpf_dbg_printk("failed to read buffer");
+        return 0;
+    };
 
     bpf_dbg_printk("goroutine_addr %lx", goroutine_addr);
     go_addr_key_t g_key = {};
