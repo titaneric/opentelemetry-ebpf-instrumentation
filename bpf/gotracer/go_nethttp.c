@@ -321,16 +321,19 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
         return 0;
     };
 
-    const u32 w3c_value_start = W3C_KEY_LENGTH + 2; // "traceparent: "
+    const char traceparent[] = "traceparent: ";
+    const char content_type[] = "content-type: ";
+
+    const u32 w3c_value_start = sizeof(traceparent) - 1;
     const u32 w3c_header_length = w3c_value_start + W3C_VAL_LENGTH;
-    const u32 content_type_value_start = CONTENT_TYPE_KEY_LEN + 2; // "content-type: "
+    const u32 content_type_value_start = sizeof(content_type) - 1;
     const u32 content_type_header_length = content_type_value_start + HTTP_CONTENT_TYPE_MAX_LEN;
 
     server_http_func_invocation_t *inv = bpf_map_lookup_elem(&ongoing_http_server_requests, &g_key);
 
     if (safe_len >= w3c_header_length &&
-        !bpf_memicmp((const char *)temp, "traceparent: ", w3c_value_start)) {
-        u8 *traceparent_start = temp + w3c_value_start;
+        bpf_memicmp((const char *)temp, (const char *)traceparent, w3c_value_start) == 0) {
+        unsigned char *traceparent_start = temp + w3c_value_start;
         if (inv) {
             update_traceparent(inv, traceparent_start);
         } else {
@@ -339,8 +342,9 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
             bpf_map_update_elem(&ongoing_http_server_requests, &g_key, &minimal_inv, BPF_ANY);
         }
     } else if (safe_len >= content_type_header_length &&
-               !bpf_memicmp((const char *)temp, "content-type: ", content_type_value_start)) {
-        u8 *content_type_start = temp + content_type_value_start;
+               bpf_memicmp(
+                   (const char *)temp, (const char *)content_type, content_type_value_start) == 0) {
+        unsigned char *content_type_start = temp + content_type_value_start;
         if (inv) {
             update_content_type(inv, content_type_start);
         } else {
