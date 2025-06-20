@@ -84,11 +84,11 @@ struct {
     __type(key, u32);
     __type(value, unsigned char[HTTP_HEADER_MAX_LEN]);
     __uint(max_entries, 1);
-} temp_mem_scratch SEC(".maps");
+} temp_header_mem_store SEC(".maps");
 
-static __always_inline unsigned char *temp_mem() {
+static __always_inline unsigned char *temp_header_mem() {
     const u32 zero = 0;
-    return bpf_map_lookup_elem(&temp_mem_scratch, &zero);
+    return bpf_map_lookup_elem(&temp_header_mem_store, &zero);
 }
 
 /* HTTP Server */
@@ -348,7 +348,7 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
     u64 len = (u64)GO_PARAM2(ctx);
     const unsigned char *buf = (const unsigned char *)GO_PARAM1(ctx);
 
-    unsigned char *temp = temp_mem();
+    unsigned char *temp = temp_header_mem();
     const u32 safe_len = len > HTTP_HEADER_MAX_LEN ? HTTP_HEADER_MAX_LEN : len;
     if (!temp || bpf_probe_read_user(temp, safe_len, buf) != 0) {
         bpf_dbg_printk("failed to read buffer");
