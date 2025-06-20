@@ -91,6 +91,18 @@ static __always_inline unsigned char *temp_header_mem() {
     return bpf_map_lookup_elem(&temp_header_mem_store, &zero);
 }
 
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __type(key, u32);
+    __type(value, unsigned char[HTTP_BODY_MAX_LEN]);
+    __uint(max_entries, 1);
+} temp_body_mem_store SEC(".maps");
+
+static __always_inline unsigned char *temp_body_mem() {
+    const u32 zero = 0;
+    return bpf_map_lookup_elem(&temp_body_mem_store, &zero);
+}
+
 /* HTTP Server */
 
 // This instrumentation attaches uprobe to the following function:
@@ -1288,31 +1300,40 @@ int beyla_uprobe_bodyReadReturn(struct pt_regs *ctx) {
         bpf_dbg_printk("can't find invocation info for server call");
         return 0;
     }
-    // content-type is set in invocation in ServeHTTP
-    bpf_dbg_printk("n is %llu", n);
-    bpf_dbg_printk("content type is %s", invocation->content_type);
 
-    char body_buf[HTTP_BODY_MAX_LEN] = {};
     if (n <= 0 || !invocation->body_addr) {
         return 0;
     }
+    // content-type is set in invocation in ServeHTTP
+    bpf_dbg_printk("n is %llu", n);
+    bpf_dbg_printk("content type is %s", invocation->content_type);
+    unsigned char *body_buf = temp_body_mem();
+    if (!body_buf) {
+        return 0;
+    }
+
+    const u32 safe_len = n > HTTP_BODY_MAX_LEN ? HTTP_BODY_MAX_LEN : n;
     if (is_json_content_type((void *)invocation->content_type, sizeof(invocation->content_type))) {
-        if (read_go_str_n(
-                "http body", (void *)invocation->body_addr, n, body_buf, sizeof(body_buf))) {
-            bpf_dbg_printk("body is %s", body_buf);
-            if (is_jsonrpc2_body((const unsigned char *)body_buf, sizeof(body_buf))) {
-                char method_buf[JSONRPC_METHOD_BUF_SIZE] = {};
-                u32 method_len = extract_jsonrpc2_method(
-                    (const unsigned char *)body_buf, sizeof(body_buf), method_buf);
-                if (method_len > 0) {
-                    bpf_dbg_printk("JSON-RPC method: %s", method_buf);
-                    read_go_str_n("JSON-RPC method",
-                                  (void *)method_buf,
-                                  method_len,
-                                  invocation->method,
-                                  sizeof(invocation->method));
-                }
-            }
+        if (bpf_probe_read_user(body_buf, safe_len, (const unsigned char *)invocation->body_addr) !=
+            0) {
+            bpf_dbg_printk("match json content type, but can't read body, body_addr %llx, n %llu",
+                           invocation->body_addr,
+                           n);
+            return 0;
+        }
+        bpf_dbg_printk("body is %s %d %d", body_buf, sizeof(body_buf), safe_len);
+        if (is_jsonrpc2_body((const unsigned char *)body_buf, safe_len)) {
+            // char method_buf[JSONRPC_METHOD_BUF_SIZE] = {};
+            // u32 method_len =
+            //     extract_jsonrpc2_method((const unsigned char *)body_buf, safe_len, method_buf);
+            // if (method_len > 0) {
+            //     bpf_dbg_printk("JSON-RPC method: %s", method_buf);
+            //     read_go_str_n("JSON-RPC method",
+            //                   (void *)method_buf,
+            //                   method_len,
+            //                   invocation->method,
+            //                   sizeof(invocation->method));
+            // }
         }
     }
     return 0;
