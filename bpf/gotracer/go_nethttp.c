@@ -298,6 +298,40 @@ static __always_inline void update_content_type(server_http_func_invocation_t *i
     bpf_dbg_printk("Found content-type in header %s", inv->content_type);
 }
 
+static __always_inline void handle_traceparent_header(server_http_func_invocation_t *inv,
+                                                      go_addr_key_t *g_key,
+                                                      unsigned char *traceparent_start) {
+    if (inv) {
+        update_traceparent(inv, traceparent_start);
+    } else {
+        server_http_func_invocation_t minimal_inv = {};
+        update_traceparent(&minimal_inv, traceparent_start);
+        bpf_map_update_elem(&ongoing_http_server_requests, g_key, &minimal_inv, BPF_ANY);
+    }
+}
+
+static __always_inline void handle_content_type_header(server_http_func_invocation_t *inv,
+                                                       go_addr_key_t *g_key,
+                                                       unsigned char *content_type_start) {
+    if (inv) {
+        update_content_type(inv, content_type_start);
+    } else {
+        server_http_func_invocation_t minimal_inv = {};
+        update_content_type(&minimal_inv, content_type_start);
+        bpf_map_update_elem(&ongoing_http_server_requests, g_key, &minimal_inv, BPF_ANY);
+    }
+}
+
+// Matches the header in the buffer and returns a pointer to the value part of the header.
+static __always_inline unsigned char *match_header(
+    const unsigned char *buf, u32 safe_len, const char *header, u32 header_len, u32 value_len) {
+    if (safe_len >= header_len + value_len &&
+        bpf_memicmp((const char *)buf, header, header_len) == 0) {
+        return (unsigned char *)(buf + header_len);
+    }
+    return NULL;
+}
+
 SEC("uprobe/readContinuedLineSlice")
 int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
     bpf_dbg_printk("=== uprobe/proc readContinuedLineSlice returns === ");
@@ -325,33 +359,20 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
     const char content_type[] = "content-type: ";
 
     const u32 w3c_value_start = sizeof(traceparent) - 1;
-    const u32 w3c_header_length = w3c_value_start + W3C_VAL_LENGTH;
     const u32 content_type_value_start = sizeof(content_type) - 1;
-    const u32 content_type_header_length = content_type_value_start + HTTP_CONTENT_TYPE_MAX_LEN;
 
     server_http_func_invocation_t *inv = bpf_map_lookup_elem(&ongoing_http_server_requests, &g_key);
 
-    if (safe_len >= w3c_header_length &&
-        bpf_memicmp((const char *)temp, (const char *)traceparent, w3c_value_start) == 0) {
-        unsigned char *traceparent_start = temp + w3c_value_start;
-        if (inv) {
-            update_traceparent(inv, traceparent_start);
-        } else {
-            server_http_func_invocation_t minimal_inv = {};
-            update_traceparent(&minimal_inv, traceparent_start);
-            bpf_map_update_elem(&ongoing_http_server_requests, &g_key, &minimal_inv, BPF_ANY);
-        }
-    } else if (safe_len >= content_type_header_length &&
-               bpf_memicmp(
-                   (const char *)temp, (const char *)content_type, content_type_value_start) == 0) {
-        unsigned char *content_type_start = temp + content_type_value_start;
-        if (inv) {
-            update_content_type(inv, content_type_start);
-        } else {
-            server_http_func_invocation_t minimal_inv = {};
-            update_content_type(&minimal_inv, content_type_start);
-            bpf_map_update_elem(&ongoing_http_server_requests, &g_key, &minimal_inv, BPF_ANY);
-        }
+    unsigned char *traceparent_start =
+        match_header(temp, safe_len, traceparent, w3c_value_start, W3C_VAL_LENGTH);
+    if (traceparent_start) {
+        handle_traceparent_header(inv, &g_key, traceparent_start);
+    }
+
+    unsigned char *content_type_start = match_header(
+        temp, safe_len, content_type, content_type_value_start, HTTP_CONTENT_TYPE_MAX_LEN);
+    if (content_type_start) {
+        handle_content_type_header(inv, &g_key, content_type_start);
     }
 
     return 0;
