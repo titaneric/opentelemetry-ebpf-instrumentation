@@ -303,6 +303,14 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
     bpf_dbg_printk("=== uprobe/proc readContinuedLineSlice returns === ");
 
     void *goroutine_addr = GOROUTINE_PTR(ctx);
+    bpf_dbg_printk("goroutine_addr %lx", goroutine_addr);
+    go_addr_key_t g_key = {};
+    go_addr_key_from_id(&g_key, goroutine_addr);
+    connection_info_t *existing = bpf_map_lookup_elem(&ongoing_server_connections, &g_key);
+    if (!existing) {
+        return 0;
+    }
+
     u64 len = (u64)GO_PARAM2(ctx);
     const unsigned char *buf = (const unsigned char *)GO_PARAM1(ctx);
 
@@ -313,19 +321,11 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
         return 0;
     };
 
-    bpf_dbg_printk("goroutine_addr %lx", goroutine_addr);
-    go_addr_key_t g_key = {};
-    go_addr_key_from_id(&g_key, goroutine_addr);
+    const u32 w3c_value_start = W3C_KEY_LENGTH + 2; // "traceparent: "
+    const u32 w3c_header_length = w3c_value_start + W3C_VAL_LENGTH;
+    const u32 content_type_value_start = CONTENT_TYPE_KEY_LEN + 2; // "content-type: "
+    const u32 content_type_header_length = content_type_value_start + HTTP_CONTENT_TYPE_MAX_LEN;
 
-    int w3c_value_start = W3C_KEY_LENGTH + 2; // "traceparent: "
-    int w3c_header_length = w3c_value_start + W3C_VAL_LENGTH;
-    int content_type_value_start = CONTENT_TYPE_KEY_LEN + 2; // "content-type: "
-    int content_type_header_length = content_type_value_start + HTTP_CONTENT_TYPE_MAX_LEN;
-
-    connection_info_t *existing = bpf_map_lookup_elem(&ongoing_server_connections, &g_key);
-    if (!existing) {
-        return 0;
-    }
     server_http_func_invocation_t *inv = bpf_map_lookup_elem(&ongoing_http_server_requests, &g_key);
 
     if (safe_len >= w3c_header_length &&
@@ -1279,28 +1279,28 @@ int beyla_uprobe_bodyReadReturn(struct pt_regs *ctx) {
         return 0;
     }
     // content-type is set in invocation in ServeHTTP
-    bpf_dbg_printk("n is %d", n);
+    bpf_dbg_printk("n is %llu", n);
     bpf_dbg_printk("content type is %s", invocation->content_type);
 
     char body_buf[HTTP_BODY_MAX_LEN] = {};
-    if (n > 0 && invocation->body_addr) {
-        if (is_json_content_type((void *)invocation->content_type,
-                                 sizeof(invocation->content_type))) {
-            if (read_go_str_n(
-                    "http body", (void *)invocation->body_addr, n, body_buf, sizeof(body_buf))) {
-                bpf_dbg_printk("body is %s", body_buf);
-                if (is_jsonrpc2_body((const unsigned char *)body_buf, sizeof(body_buf))) {
-                    char method_buf[JSONRPC_METHOD_BUF_SIZE] = {};
-                    u32 method_len = extract_jsonrpc2_method(
-                        (const unsigned char *)body_buf, sizeof(body_buf), method_buf);
-                    if (method_len > 0) {
-                        bpf_dbg_printk("JSON-RPC method: %s", method_buf);
-                        read_go_str_n("JSON-RPC method",
-                                      (void *)method_buf,
-                                      method_len,
-                                      invocation->method,
-                                      sizeof(invocation->method));
-                    }
+    if (n <= 0 || !invocation->body_addr) {
+        return 0;
+    }
+    if (is_json_content_type((void *)invocation->content_type, sizeof(invocation->content_type))) {
+        if (read_go_str_n(
+                "http body", (void *)invocation->body_addr, n, body_buf, sizeof(body_buf))) {
+            bpf_dbg_printk("body is %s", body_buf);
+            if (is_jsonrpc2_body((const unsigned char *)body_buf, sizeof(body_buf))) {
+                char method_buf[JSONRPC_METHOD_BUF_SIZE] = {};
+                u32 method_len = extract_jsonrpc2_method(
+                    (const unsigned char *)body_buf, sizeof(body_buf), method_buf);
+                if (method_len > 0) {
+                    bpf_dbg_printk("JSON-RPC method: %s", method_buf);
+                    read_go_str_n("JSON-RPC method",
+                                  (void *)method_buf,
+                                  method_len,
+                                  invocation->method,
+                                  sizeof(invocation->method));
                 }
             }
         }
