@@ -54,51 +54,11 @@ static __always_inline u32 json_str_value(const unsigned char *body,
     return bpf_memstr(body, body_len, str, str_len);
 }
 
-// Returns the end position (index of closing quote) of a JSON string value.
-// If not found, returns body_len.
-static __always_inline u32 json_str_value_end(const unsigned char *body,
-                                              u32 body_len,
-                                              u32 value_start) {
-    // find_first_pos_of expects unsigned char*, so cast accordingly
-    return value_start + find_first_pos_of((unsigned char *)(body + value_start),
-                                           (unsigned char *)(body + body_len),
-                                           '"');
-}
-
 // Compares a JSON value at start with a given value.
 // Returns 1 if equal, 0 otherwise.
 static __always_inline u8 json_value_eq(const char *start, const char *val, u32 val_len) {
 
     return bpf_memicmp(start, val, val_len) == 0;
-}
-
-/**
- * Copies a JSON string value from body[value_start..value_end) into dest_buf.
- * Ensures null-termination and does not exceed dest_buf_size.
- * Returns the number of bytes copied (excluding null terminator), or 0 on error.
- */
-static __always_inline u32 copy_json_string_value(const unsigned char *body,
-                                                  u32 value_start,
-                                                  u32 value_end,
-                                                  unsigned char *dest_buf,
-                                                  u32 dest_buf_size) {
-    u32 value_len = value_end - value_start;
-    if (value_len <= 0) {
-        return 0;
-    }
-    if (value_len >= dest_buf_size) {
-        value_len = dest_buf_size - 1; // leave space for null terminator
-    }
-
-#pragma unroll
-    for (u32 i = 0; i < dest_buf_size; i++) {
-        if (i >= value_len) {
-            break;
-        }
-        dest_buf[i] = body[value_start + i];
-    }
-    dest_buf[value_len] = '\0';
-    return value_len;
 }
 
 // Extracts a JSON string value starting at a given position.
@@ -120,15 +80,17 @@ static __always_inline u32 extract_json_string(
         value_end++;
     }
     const u32 value_len = value_end - str_start;
-    if (value_len == 0)
+    if (value_len == 0) {
         return 0;
+    }
 
     const u32 copy_len = value_len < (buf_len - 1) ? value_len : (buf_len - 1);
 
     // #pragma unroll
     for (u32 i = 0; i < buf_len; i++) {
-        if (i >= copy_len)
+        if (i >= copy_len) {
             break;
+        }
         buf[i] = body[str_start + i];
     }
     buf[copy_len] = '\0';
