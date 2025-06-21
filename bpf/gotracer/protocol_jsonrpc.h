@@ -101,6 +101,34 @@ static __always_inline u32 copy_json_string_value(const unsigned char *body,
     return value_len;
 }
 
+// Extracts a JSON string value starting at a given position (after the opening quote).
+// Copies up to buf_len-1 bytes into buf, null-terminated.
+// Returns the number of bytes copied (not including null terminator), or 0 on error.
+static __always_inline u32 extract_json_string(
+    const unsigned char *body, u32 body_len, u32 value_start, unsigned char *buf, u32 buf_len) {
+    if (value_start >= body_len || buf_len == 0)
+        return 0;
+
+    u32 value_end = value_start;
+    while (value_end < body_len && body[value_end] != '"') {
+        value_end++;
+    }
+    u32 value_len = value_end - value_start;
+    if (value_len == 0)
+        return 0;
+
+    u32 copy_len = value_len < (buf_len - 1) ? value_len : (buf_len - 1);
+
+    // #pragma unroll
+    for (u32 i = 0; i < JSONRPC_METHOD_BUF_SIZE; i++) {
+        if (i >= copy_len)
+            break;
+        buf[i] = body[value_start + i];
+    }
+    buf[copy_len] = '\0';
+    return copy_len;
+}
+
 // Looks for '"jsonrpc":"2.0"'
 static __always_inline u32 is_jsonrpc2_body(const unsigned char *body, u32 body_len) {
     u32 key_pos =
@@ -116,8 +144,12 @@ static __always_inline u32 is_jsonrpc2_body(const unsigned char *body, u32 body_
         return 0;
     }
 
-    val_search_start = json_value_offset(body, body_len, key_pos + k_jsonrpc_key_len);
+    val_search_start = json_value_offset(body, body_len, val_search_start);
     if (val_search_start >= body_len) {
+        return 0;
+    }
+
+    if (val_search_start + k_jsonrpc_val_len >= body_len) {
         return 0;
     }
 
@@ -152,15 +184,11 @@ static __always_inline u32 extract_jsonrpc2_method(const unsigned char *body,
         return 0;
     }
 
-    val_search_start = json_value_offset(body, body_len, key_pos + k_method_key_len);
+    val_search_start = json_value_offset(body, body_len, val_search_start);
     // method value should be a string
     if (val_search_start >= body_len || body[val_search_start] != '"') {
         return 0;
     }
-
-    // Copy the method value from the body after the opening quote
     u32 value_start = val_search_start + 1;
-    u32 value_end = json_str_value_end(body, body_len, value_start);
-
-    return copy_json_string_value(body, value_start, value_end, method_buf, method_buf_len);
+    return extract_json_string(body, body_len, value_start, method_buf, method_buf_len);
 }
