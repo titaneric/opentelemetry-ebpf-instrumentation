@@ -1360,17 +1360,14 @@ int beyla_read_jsonrpc_method(struct pt_regs *ctx) {
         return 0;
     }
 
-    unsigned char *body_map_buf = temp_body_mem();
-    if (!body_map_buf) {
+    unsigned char *body_buf = temp_body_mem();
+    if (!body_buf) {
         return 0;
     }
-    // TODO: save this body buffer?
-    unsigned char body_buf[HTTP_BODY_MAX_LEN] = {};
-    __builtin_memcpy(body_buf, body_map_buf, sizeof(body_buf));
-    if (is_jsonrpc2_body((const unsigned char *)body_buf, sizeof(body_buf))) {
+    if (is_jsonrpc2_body((const unsigned char *)body_buf, HTTP_BODY_MAX_LEN)) {
         unsigned char method_buf[JSONRPC_METHOD_BUF_SIZE] = {};
         u32 method_len = extract_jsonrpc2_method(
-            (const unsigned char *)body_buf, sizeof(body_buf), method_buf, sizeof(method_buf));
+            (const unsigned char *)body_buf, HTTP_BODY_MAX_LEN, method_buf, sizeof(method_buf));
         if (method_len > 0) {
             bpf_dbg_printk("JSON-RPC method: %s", method_buf);
             read_go_str_n("JSON-RPC method",
