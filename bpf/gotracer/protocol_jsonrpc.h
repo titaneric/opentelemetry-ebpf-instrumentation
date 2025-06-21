@@ -11,7 +11,7 @@ static const u32 k_application_json_len = sizeof(k_application_json) - 1;
 static const char k_method_key[] = "\"method\"";
 static const u32 k_method_key_len = sizeof(k_method_key) - 1;
 
-enum { JSONRPC_METHOD_BUF_SIZE = 16 };
+enum { JSON_MAX_STRING_LEN = 16, JSONRPC_METHOD_BUF_SIZE = 16 };
 
 // should match application/json, application/json-rpc, application/jsonrequest
 // listed in https://www.jsonrpc.org/historical/json-rpc-over-http.html
@@ -101,29 +101,35 @@ static __always_inline u32 copy_json_string_value(const unsigned char *body,
     return value_len;
 }
 
-// Extracts a JSON string value starting at a given position (after the opening quote).
+// Extracts a JSON string value starting at a given position.
 // Copies up to buf_len-1 bytes into buf, null-terminated.
 // Returns the number of bytes copied (not including null terminator), or 0 on error.
 static __always_inline u32 extract_json_string(
     const unsigned char *body, u32 body_len, u32 value_start, unsigned char *buf, u32 buf_len) {
-    if (value_start >= body_len || buf_len == 0)
+    if (value_start >= body_len || buf_len == 0) {
         return 0;
+    }
 
-    u32 value_end = value_start;
+    if (body[value_start] != '"') {
+        return 0;
+    }
+
+    const u32 str_start = value_start + 1;
+    u32 value_end = str_start;
     while (value_end < body_len && body[value_end] != '"') {
         value_end++;
     }
-    u32 value_len = value_end - value_start;
+    const u32 value_len = value_end - str_start;
     if (value_len == 0)
         return 0;
 
-    u32 copy_len = value_len < (buf_len - 1) ? value_len : (buf_len - 1);
+    const u32 copy_len = value_len < (buf_len - 1) ? value_len : (buf_len - 1);
 
     // #pragma unroll
-    for (u32 i = 0; i < JSONRPC_METHOD_BUF_SIZE; i++) {
+    for (u32 i = 0; i < buf_len; i++) {
         if (i >= copy_len)
             break;
-        buf[i] = body[value_start + i];
+        buf[i] = body[str_start + i];
     }
     buf[copy_len] = '\0';
     return copy_len;
@@ -185,10 +191,8 @@ static __always_inline u32 extract_jsonrpc2_method(const unsigned char *body,
     }
 
     val_search_start = json_value_offset(body, body_len, val_search_start);
-    // method value should be a string
-    if (val_search_start >= body_len || body[val_search_start] != '"') {
+    if (val_search_start >= body_len) {
         return 0;
     }
-    u32 value_start = val_search_start + 1;
-    return extract_json_string(body, body_len, value_start, method_buf, method_buf_len);
+    return extract_json_string(body, body_len, val_search_start, method_buf, method_buf_len);
 }
