@@ -65,6 +65,13 @@ static __always_inline u32 json_str_value_end(const unsigned char *body,
                                            '"');
 }
 
+// Compares a JSON value at start with a given value.
+// Returns 1 if equal, 0 otherwise.
+static __always_inline u8 json_value_eq(const char *start, const char *val, u32 val_len) {
+
+    return bpf_memicmp(start, val, val_len) == 0;
+}
+
 /**
  * Copies a JSON string value from body[value_start..value_end) into dest_buf.
  * Ensures null-termination and does not exceed dest_buf_size.
@@ -104,13 +111,19 @@ static __always_inline u32 is_jsonrpc2_body(const unsigned char *body, u32 body_
 
     bpf_dbg_printk("Found JSON-RPC 2.0 key");
 
-    u32 val_search_start = json_value_offset(body, body_len, key_pos + k_jsonrpc_key_len);
+    u32 val_search_start = key_pos + k_jsonrpc_key_len;
     if (val_search_start >= body_len) {
         return 0;
     }
 
-    if (bpf_memicmp((const char *)(body + val_search_start), k_jsonrpc_val, k_jsonrpc_val_len) !=
-        0) {
+    val_search_start = json_value_offset(body, body_len, key_pos + k_jsonrpc_key_len);
+    if (val_search_start >= body_len) {
+        return 0;
+    }
+
+    if (!json_value_eq((const char *)(body + val_search_start),
+                       (const char *)k_jsonrpc_val,
+                       k_jsonrpc_val_len)) {
         return 0;
     }
 
@@ -124,7 +137,8 @@ static __always_inline u32 is_jsonrpc2_body(const unsigned char *body, u32 body_
 // method_buf must be at least method_buf_len bytes.
 static __always_inline u32 extract_jsonrpc2_method(const unsigned char *body,
                                                    u32 body_len,
-                                                   unsigned char *method_buf) {
+                                                   unsigned char *method_buf,
+                                                   u32 method_buf_len) {
     u32 key_pos =
         json_str_value(body, body_len, (const unsigned char *)k_method_key, k_method_key_len);
     if (key_pos == INVALID_POS) {
@@ -133,18 +147,20 @@ static __always_inline u32 extract_jsonrpc2_method(const unsigned char *body,
 
     bpf_dbg_printk("Found JSON-RPC method key");
 
-    u32 val_search_start = json_value_offset(body, body_len, key_pos + k_method_key_len);
+    u32 val_search_start = key_pos + k_method_key_len;
+    if (val_search_start >= body_len) {
+        return 0;
+    }
+
+    val_search_start = json_value_offset(body, body_len, key_pos + k_method_key_len);
     // method value should be a string
     if (val_search_start >= body_len || body[val_search_start] != '"') {
         return 0;
     }
 
-    bpf_dbg_printk("Found JSON-RPC method value opening quote");
-
     // Copy the method value from the body after the opening quote
     u32 value_start = val_search_start + 1;
     u32 value_end = json_str_value_end(body, body_len, value_start);
 
-    return copy_json_string_value(
-        body, value_start, value_end, method_buf, JSONRPC_METHOD_BUF_SIZE);
+    return copy_json_string_value(body, value_start, value_end, method_buf, method_buf_len);
 }
