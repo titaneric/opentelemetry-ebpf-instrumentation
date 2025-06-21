@@ -28,6 +28,7 @@ const (
 	instrumentedServiceGorillaMidURL  = "http://localhost:8083"
 	instrumentedServiceGorillaMid2URL = "http://localhost:8087"
 	instrumentedServiceStdTLSURL      = "https://localhost:8383"
+	instrumentedServiceJsonRpcURL     = "http://localhost:8088"
 	prometheusHostPort                = "localhost:9090"
 	jaegerQueryURL                    = "http://localhost:16686/api/traces"
 
@@ -89,6 +90,18 @@ func testREDMetricsShortHTTP(t *testing.T) {
 			waitForTestComponents(t, testCaseURL)
 			testREDMetricsForHTTPLibrary(t, testCaseURL, "testserver", "integration-test")
 			testSpanMetricsForHTTPLibraryOTelFormat(t, "testserver", "integration-test")
+		})
+	}
+}
+
+func testREDMetricsJSONRPCHTTP(t *testing.T) {
+	for _, testCaseURL := range []string{
+		instrumentedServiceJsonRpcURL,
+	} {
+		t.Run(testCaseURL, func(t *testing.T) {
+			waitForTestComponents(t, testCaseURL)
+			testREDMetricsForJSONRPCHTTP(t, testCaseURL, "testserver", "integration-test")
+			// testSpanMetricsForHTTPLibraryOTelFormat(t, "testserver", "integration-test")
 		})
 	}
 }
@@ -259,6 +272,38 @@ func testServiceGraphMetricsForHTTPLibrary(t *testing.T, svcNs string) {
 	// check calls total to 0, no self references
 	val = totalPromCount(t, results)
 	assert.Equal(t, 0, val)
+}
+
+func testREDMetricsForJSONRPCHTTP(t *testing.T, url, svcName, svcNs string) {
+	urlPath := "/jsonrpc"
+	jsonBody := `{"jsonrpc":"2.0","method":"Arith.Multiply","params":[{"A":7,"B":8}],"id":1}`
+
+	for i := 0; i < 4; i++ {
+		doHTTPPost(t, url+urlPath, 200, []byte(jsonBody))
+	}
+
+	// Eventually, Prometheus would make this query visible
+	pq := prom.Client{HostPort: prometheusHostPort}
+	var results []prom.Result
+	test.Eventually(t, testTimeout, func(t require.TestingT) {
+		var err error
+		results, err = pq.Query(`http_server_request_duration_seconds_count{` +
+			`http_request_method="Arith.M",` +
+			`http_response_status_code="200",` +
+			`service_namespace="` + svcNs + `",` +
+			`service_name="` + svcName + `",` +
+			`url_path="` + urlPath + `"}`)
+		require.NoError(t, err)
+		enoughPromResults(t, results)
+		val := totalPromCount(t, results)
+		assert.LessOrEqual(t, 3, val)
+		if len(results) > 0 {
+			res := results[0]
+			addr := res.Metric["client_address"]
+			assert.NotNil(t, addr)
+		}
+	})
+
 }
 
 func testREDMetricsForHTTPLibrary(t *testing.T, url, svcName, svcNs string) {

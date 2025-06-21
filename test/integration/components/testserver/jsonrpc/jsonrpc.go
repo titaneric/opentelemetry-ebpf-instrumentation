@@ -58,7 +58,8 @@ func HTTPHandler(log *slog.Logger, echoPort int) http.HandlerFunc {
 			// Serve the request using JSON-RPC codec.
 			rpc.ServeCodec(jsonrpc.NewServerCodec(conn))
 		} else {
-			http.NotFound(rw, req)
+			rw.WriteHeader(http.StatusOK)
 		}
+
 	}
 }
