@@ -105,17 +105,12 @@ static __always_inline u32 is_jsonrpc2_body(const unsigned char *body, u32 body_
     bpf_dbg_printk("Found JSON-RPC 2.0 key");
 
     u32 val_search_start = json_value_offset(body, body_len, key_pos + k_jsonrpc_key_len);
-    // The jsonrpc value should be a string
-    if (val_search_start >= body_len || body[val_search_start] != '"') {
+    if (val_search_start >= body_len) {
         return 0;
     }
 
-    u32 val_pos = json_str_value(body + val_search_start,
-                                 body_len - val_search_start,
-                                 (const unsigned char *)k_jsonrpc_val,
-                                 k_jsonrpc_val_len);
-    // The jsonrpc value should start immediately after the opening quote
-    if (val_pos == INVALID_POS || val_pos != 0) {
+    if (bpf_memicmp((const char *)(body + val_search_start), k_jsonrpc_val, k_jsonrpc_val_len) !=
+        0) {
         return 0;
     }
 
