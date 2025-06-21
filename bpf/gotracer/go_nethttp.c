@@ -67,13 +67,13 @@ typedef struct server_http_func_invocation {
     u64 content_length;
     u64 response_length;
     u64 status;
+    u64 body_addr; // pointer to the body buffer
     tp_info_t tp;
+    unsigned char content_type[HTTP_CONTENT_TYPE_MAX_LEN];
     u8 method[METHOD_MAX_LEN];
     u8 path[PATH_MAX_LEN];
     u8 json_content_type;
-    u8 _pad[4];
-    u64 body_addr; // pointer to the body buffer
-    u8 content_type[HTTP_CONTENT_TYPE_MAX_LEN];
+    u8 _pad[12];
 } server_http_func_invocation_t;
 
 struct {
@@ -1360,6 +1360,8 @@ int beyla_read_jsonrpc_method(struct pt_regs *ctx) {
         return 0;
     }
 
+    // tail call is guaranteed to run on the same CPU as its caller
+    // so we can shared the same buffer via a per-CPU map
     unsigned char *body_buf = temp_body_mem();
     if (!body_buf) {
         return 0;
