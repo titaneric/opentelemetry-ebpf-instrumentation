@@ -68,9 +68,10 @@ typedef struct server_http_func_invocation {
     u64 response_length;
     u64 status;
     tp_info_t tp;
-    unsigned char method[METHOD_MAX_LEN];
-    unsigned char path[PATH_MAX_LEN];
-    u8 _pad[5];
+    u8 method[METHOD_MAX_LEN];
+    u8 path[PATH_MAX_LEN];
+    u8 json_content_type;
+    u8 _pad[4];
     u64 body_addr; // pointer to the body buffer
     u8 content_type[HTTP_CONTENT_TYPE_MAX_LEN];
 } server_http_func_invocation_t;
@@ -149,9 +150,13 @@ int beyla_uprobe_ServeHTTP(struct pt_regs *ctx) {
         // get content-type from readContinuedLineSlice
         if (header_inv && header_inv->content_type[0]) {
             bpf_dbg_printk("Found content type in ongoing request: %s", header_inv->content_type);
-            __builtin_memcpy(invocation.content_type,
-                             header_inv->content_type,
-                             sizeof(header_inv->content_type));
+            // __builtin_memcpy(invocation.content_type,
+            //                  header_inv->content_type,
+            //                  sizeof(header_inv->content_type));
+            if (is_json_content_type((void *)header_inv->content_type,
+                                     sizeof(header_inv->content_type))) {
+                invocation.json_content_type = 1;
+            }
         }
 
         // Get method from Request.Method
@@ -1294,7 +1299,6 @@ int beyla_uprobe_bodyRead(struct pt_regs *ctx) {
     server_http_func_invocation_t *invocation =
         bpf_map_lookup_elem(&ongoing_http_server_requests, &g_key);
     if (!invocation) {
-        bpf_dbg_printk("can't find invocation info for server call");
         return 0;
     }
     invocation->body_addr = body_addr;
@@ -1310,26 +1314,24 @@ int beyla_uprobe_bodyReadReturn(struct pt_regs *ctx) {
     go_addr_key_from_id(&g_key, goroutine_addr);
 
     u64 n = (u64)GO_PARAM1(ctx);
+    bpf_dbg_printk("n is %llu", n);
 
     server_http_func_invocation_t *invocation =
         bpf_map_lookup_elem(&ongoing_http_server_requests, &g_key);
     if (!invocation) {
-        bpf_dbg_printk("can't find invocation info for server call");
         return 0;
     }
-    // content-type is set in invocation in ServeHTTP
-    bpf_dbg_printk("n is %llu", n);
-    bpf_dbg_printk("content type is %s", invocation->content_type);
-
     if (n <= 0 || !invocation->body_addr) {
         return 0;
     }
-    unsigned char *body_buf = temp_body_mem();
-    if (!body_buf) {
+    // json_content-type is set in invocation in ServeHTTP
+    if (invocation->json_content_type != 1) {
+        bpf_dbg_printk("content type is not json, skipping");
         return 0;
     }
-    if (!is_json_content_type((void *)invocation->content_type, sizeof(invocation->content_type))) {
-        bpf_dbg_printk("content type is not json, skipping");
+
+    unsigned char *body_buf = temp_body_mem();
+    if (!body_buf) {
         return 0;
     }
 
@@ -1338,7 +1340,7 @@ int beyla_uprobe_bodyReadReturn(struct pt_regs *ctx) {
         bpf_dbg_printk("failed to read body, n=%llu, body_addr=%llx", n, invocation->body_addr);
         return 0;
     }
-    bpf_dbg_printk("body is %s", body_buf);
+    // bpf_dbg_printk("body is %s", body_buf);
     bpf_tail_call(ctx, &jsonrpc_jump_table, k_tail_jsonrpc);
     return 0;
 }
