@@ -8,6 +8,8 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -275,8 +277,10 @@ func testServiceGraphMetricsForHTTPLibrary(t *testing.T, svcNs string) {
 }
 
 func testREDMetricsForJSONRPCHTTP(t *testing.T, url, svcName, svcNs string) {
+	jsonBody, err := os.ReadFile(path.Join(pathRoot, "test", "integration", "components", "testserver", "jsonrpc", "body", "formated.json"))
+	require.NoError(t, err)
 	urlPath := "/jsonrpc"
-	jsonBody := `{"jsonrpc":"2.0","method":"Arith.Multiply","params":[{"A":7,"B":8}],"id":1}`
+	expectedMethod := "Arith.M"
 
 	for i := 0; i < 4; i++ {
 		doHTTPPost(t, url+urlPath, 200, []byte(jsonBody))
@@ -288,7 +292,7 @@ func testREDMetricsForJSONRPCHTTP(t *testing.T, url, svcName, svcNs string) {
 	test.Eventually(t, testTimeout, func(t require.TestingT) {
 		var err error
 		results, err = pq.Query(`http_server_request_duration_seconds_count{` +
-			`http_request_method="Arith.M",` +
+			`http_request_method="` + expectedMethod + `",` +
 			`http_response_status_code="200",` +
 			`service_namespace="` + svcNs + `",` +
 			`service_name="` + svcName + `",` +
