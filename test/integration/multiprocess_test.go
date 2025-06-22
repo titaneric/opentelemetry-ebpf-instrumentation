@@ -39,6 +39,13 @@ func TestMultiProcess(t *testing.T) {
 		// it doesn't instrument too the process from the other container
 		checkReportedOnlyOnce(t, "http://localhost:8900", "rename1")
 	})
+	t.Run("Go RED metrics: JSON RPC", func(t *testing.T) {
+		waitForTestComponents(t, instrumentedServiceJsonRpcURL)
+		testREDMetricsForJSONRPCHTTP(t, instrumentedServiceJsonRpcURL, "testserver", "initial-set")
+		// checks that, instrumenting the process from this container,
+		// it doesn't instrument too the process from the other container
+		checkReportedOnlyOnce(t, instrumentedServiceJsonRpcURL, "rename1")
+	})
 
 	t.Run("Go RED metrics: rust service ssl", func(t *testing.T) {
 		waitForTestComponents(t, "https://localhost:8491")
