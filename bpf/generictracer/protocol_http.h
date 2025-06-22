@@ -144,6 +144,7 @@ static __always_inline void http_get_or_create_trace_info(http_connection_metada
             bpf_clamp_umax(buf_len, TRACE_BUF_SIZE - 1);
 
             bpf_probe_read(buf, buf_len, u_buf);
+            bpf_dbg_printk("header buffer is %s, buf_len is %d", buf, buf_len);
             unsigned char *res = bpf_strstr_tp_loop(buf, buf_len);
 
             if (res) {

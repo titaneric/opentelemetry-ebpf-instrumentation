@@ -63,3 +63,14 @@ static __always_inline bool is_traceparent(const unsigned char *p) {
 
     return false;
 }
+
+static __always_inline bool is_content_type(const unsigned char *p) {
+    if (((p[0] == 'C') || (p[0] == 'c')) && (p[1] == 'o') && (p[2] == 'n') && (p[3] == 't') &&
+        (p[4] == 'e') && (p[5] == 'n') && (p[6] == 't') && (p[7] == '-') &&
+        ((p[8] == 'T') || (p[8] == 't')) && (p[9] == 'y') && (p[10] == 'p') && (p[11] == 'e') &&
+        (p[12] == ':') && (p[13] == ' ')) {
+        return true;
+    }
+
+    return false;
+}
