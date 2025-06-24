@@ -30,7 +30,7 @@ const (
 	instrumentedServiceGorillaMidURL  = "http://localhost:8083"
 	instrumentedServiceGorillaMid2URL = "http://localhost:8087"
 	instrumentedServiceStdTLSURL      = "https://localhost:8383"
-	instrumentedServiceJsonRpcURL     = "http://localhost:8088"
+	instrumentedServiceJSONRPCURL     = "http://localhost:8088"
 	prometheusHostPort                = "localhost:9090"
 	jaegerQueryURL                    = "http://localhost:16686/api/traces"
 
@@ -98,7 +98,7 @@ func testREDMetricsShortHTTP(t *testing.T) {
 
 func testREDMetricsJSONRPCHTTP(t *testing.T) {
 	for _, testCaseURL := range []string{
-		instrumentedServiceJsonRpcURL,
+		instrumentedServiceJSONRPCURL,
 	} {
 		t.Run(testCaseURL, func(t *testing.T) {
 			waitForTestComponents(t, testCaseURL)
@@ -337,7 +337,7 @@ func testREDMetricsForJSONRPCHTTP(t *testing.T, url, svcName, svcNs string) {
 	expectedMethod := "Arith.M"
 
 	for i := 0; i < 4; i++ {
-		doHTTPPost(t, url+urlPath, 200, []byte(jsonBody))
+		doHTTPPost(t, url+urlPath, 200, jsonBody)
 	}
 
 	// Eventually, Prometheus would make this query visible
@@ -361,7 +361,6 @@ func testREDMetricsForJSONRPCHTTP(t *testing.T, url, svcName, svcNs string) {
 			assert.NotNil(t, addr)
 		}
 	})
-
 }
 
 func testREDMetricsForHTTPLibrary(t *testing.T, url, svcName, svcNs string) {

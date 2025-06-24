@@ -36,16 +36,16 @@ func (w *ReadWriteCloserWrapper) Close() error {
 
 func Setup(port int) {
 	arith := new(Arith)
-	rpc.Register(arith)
+	_ = rpc.Register(arith)
 
 	log := slog.With("component", "jsonrpc.Server")
 	address := fmt.Sprintf(":%d", port)
 	log.Info("starting JSON-RPC server", "address", address)
-	err := http.ListenAndServe(address, HTTPHandler(log, port))
+	err := http.ListenAndServe(address, HTTPHandler(log))
 	log.Error("JSON-RPC server has unexpectedly stopped", "error", err)
 }
 
-func HTTPHandler(log *slog.Logger, echoPort int) http.HandlerFunc {
+func HTTPHandler(log *slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		log.Debug("received request", "url", req.RequestURI)
 		if req.RequestURI == "/jsonrpc" {
@@ -60,6 +60,5 @@ func HTTPHandler(log *slog.Logger, echoPort int) http.HandlerFunc {
 		} else {
 			rw.WriteHeader(http.StatusOK)
 		}
-
 	}
 }
