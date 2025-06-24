@@ -37,6 +37,8 @@
 #include <pid/pid_helpers.h>
 
 enum { k_tail_jsonrpc = 0 };
+static const char traceparent[] = "traceparent: ";
+static const char content_type[] = "content-type: ";
 
 typedef struct http_client_data {
     s64 content_length;
@@ -73,7 +75,7 @@ typedef struct server_http_func_invocation {
     u8 method[METHOD_MAX_LEN];
     u8 path[PATH_MAX_LEN];
     u8 json_content_type;
-    u8 _pad[12];
+    u8 _pad[4];
 } server_http_func_invocation_t;
 
 struct {
@@ -94,6 +96,7 @@ static __always_inline unsigned char *temp_header_mem() {
     const u32 zero = 0;
     return bpf_map_lookup_elem(&temp_header_mem_store, &zero);
 }
+
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
     __type(key, u32);
@@ -150,9 +153,6 @@ int beyla_uprobe_ServeHTTP(struct pt_regs *ctx) {
         // get content-type from readContinuedLineSlice
         if (header_inv && header_inv->content_type[0]) {
             bpf_dbg_printk("Found content type in ongoing request: %s", header_inv->content_type);
-            // __builtin_memcpy(invocation.content_type,
-            //                  header_inv->content_type,
-            //                  sizeof(header_inv->content_type));
             if (is_json_content_type((void *)header_inv->content_type,
                                      sizeof(header_inv->content_type))) {
                 invocation.json_content_type = 1;
@@ -373,9 +373,6 @@ int beyla_uprobe_readContinuedLineSliceReturns(struct pt_regs *ctx) {
         bpf_dbg_printk("failed to read buffer");
         return 0;
     };
-
-    const char traceparent[] = "traceparent: ";
-    const char content_type[] = "content-type: ";
 
     const u32 w3c_value_start = sizeof(traceparent) - 1;
     const u32 content_type_value_start = sizeof(content_type) - 1;
