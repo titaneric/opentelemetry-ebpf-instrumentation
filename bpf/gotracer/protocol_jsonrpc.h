@@ -86,7 +86,6 @@ static __always_inline u32 extract_json_string(
 
     const u32 copy_len = value_len < (buf_len - 1) ? value_len : (buf_len - 1);
 
-    // #pragma unroll
     for (u32 i = 0; i < buf_len; i++) {
         if (i >= copy_len) {
             break;
