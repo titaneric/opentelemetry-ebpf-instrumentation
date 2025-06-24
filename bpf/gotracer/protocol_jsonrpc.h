@@ -1,6 +1,9 @@
+#pragma once
+
 #include <logger/bpf_dbg.h>
 #include <common/tc_common.h>
 #include <common/common.h>
+#include <gotracer/go_common.h>
 
 static const char k_jsonrpc_key[] = "\"jsonrpc\"";
 static const u32 k_jsonrpc_key_len = sizeof(k_jsonrpc_key) - 1;
