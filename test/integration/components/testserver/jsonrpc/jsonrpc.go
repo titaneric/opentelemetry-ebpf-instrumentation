@@ -23,6 +23,22 @@ func (t *Arith) Multiply(args *Args, reply *int) error {
 	return nil
 }
 
+func (t *Arith) Traceme(args *Args, reply *int) error {
+	requestURL := "http://pytestserver:8083/tracemetoo"
+
+	slog.Debug("calling", "url", requestURL)
+
+	res, err := http.Get(requestURL)
+	if err != nil {
+		slog.Error("error making http request", "error", err)
+		return err
+	}
+
+	defer res.Body.Close()
+	t.Multiply(args, reply)
+	return nil
+}
+
 // ReadWriteCloserWrapper wraps an io.Reader and io.Writer to implement io.ReadWriteCloser.
 type ReadWriteCloserWrapper struct {
 	io.Reader
