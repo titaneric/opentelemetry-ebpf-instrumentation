@@ -145,7 +145,7 @@ func echoDist(rw http.ResponseWriter) {
 
 	slog.Debug("calling", "url", requestURL)
 
-	res, err := http.Post(requestURL, "application/json", bytes.NewReader([]byte(`{"jsonrpc":"2.0","method":"Arith.Traceme","params":{"A":1,"B":2},"id":1}`)))
+	res, err := http.Post(requestURL, "application/json", bytes.NewReader([]byte(`{"jsonrpc":"2.0","method":"Arith.Traceme","params":[{"A":1,"B":2}],"id":1}`)))
 	if err != nil {
 		slog.Error("error making http request", "error", err)
 		rw.WriteHeader(http.StatusInternalServerError)

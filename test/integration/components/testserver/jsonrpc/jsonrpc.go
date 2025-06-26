@@ -15,18 +15,22 @@ type Args struct {
 }
 
 // Arith provides methods for arithmetic operations.
-type Arith struct{}
+type Arith struct {
+	Logger *slog.Logger
+}
 
 // Multiply multiplies two numbers and returns the result.
 func (t *Arith) Multiply(args *Args, reply *int) error {
+	t.Logger.Debug("calling", "method", "Arith.Multiply")
 	*reply = args.A * args.B
 	return nil
 }
 
 func (t *Arith) Traceme(args *Args, reply *int) error {
+	t.Logger.Debug("calling", "method", "Arith.Traceme")
 	requestURL := "http://pytestserver:8083/tracemetoo"
 
-	slog.Debug("calling", "url", requestURL)
+	t.Logger.Debug("calling", "url", requestURL)
 
 	res, err := http.Get(requestURL)
 	if err != nil {
@@ -35,8 +39,7 @@ func (t *Arith) Traceme(args *Args, reply *int) error {
 	}
 
 	defer res.Body.Close()
-	t.Multiply(args, reply)
-	return nil
+	return t.Multiply(args, reply)
 }
 
 // ReadWriteCloserWrapper wraps an io.Reader and io.Writer to implement io.ReadWriteCloser.
@@ -51,10 +54,12 @@ func (w *ReadWriteCloserWrapper) Close() error {
 }
 
 func Setup(port int) {
-	arith := new(Arith)
+	log := slog.With("component", "jsonrpc.Arith")
+	arith := &Arith{
+		Logger: log,
+	}
 	_ = rpc.Register(arith)
 
-	log := slog.With("component", "jsonrpc.Server")
 	address := fmt.Sprintf(":%d", port)
 	log.Info("starting JSON-RPC server", "address", address)
 	err := http.ListenAndServe(address, HTTPHandler(log))
