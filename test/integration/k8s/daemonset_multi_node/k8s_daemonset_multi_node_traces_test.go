@@ -74,8 +74,8 @@ func TestMultiNodeTracing(t *testing.T) {
 					require.Len(t, res, 1)
 					parent = res[0]
 					require.NotEmpty(t, parent.TraceID)
-
 					require.Equal(t, traceID, parent.TraceID)
+
 					// Check the information of the Python span
 					res = trace.FindByOperationName("GET /tracemetoo", "server")
 					require.Len(t, res, 1)
