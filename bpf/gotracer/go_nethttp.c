@@ -19,6 +19,7 @@
 
 #include <common/http_types.h>
 #include <common/ringbuf.h>
+#include <common/strings.h>
 #include <common/tracing.h>
 
 #include <gotracer/go_byte_arr.h>
