@@ -345,8 +345,7 @@ static __always_inline void handle_content_type_header(server_http_func_invocati
 // Matches the header in the buffer and returns a pointer to the value part of the header.
 static __always_inline unsigned char *match_header(
     const unsigned char *buf, u32 safe_len, const char *header, u32 header_len, u32 value_len) {
-    if (safe_len >= header_len + value_len &&
-        bpf_memicmp((const char *)buf, header, header_len) == 0) {
+    if (safe_len >= header_len + value_len && stricmp((const char *)buf, header, header_len) == 0) {
         return (unsigned char *)(buf + header_len);
     }
     return NULL;

@@ -3,6 +3,7 @@
 #include <logger/bpf_dbg.h>
 #include <common/tc_common.h>
 #include <common/common.h>
+#include <common/strings.h>
 #include <gotracer/go_common.h>
 
 static const char k_jsonrpc_key[] = "\"jsonrpc\"";
@@ -61,7 +62,7 @@ static __always_inline u32 json_str_value(const unsigned char *body,
 // Returns 1 if equal, 0 otherwise.
 static __always_inline u8 json_value_eq(const char *start, const char *val, u32 val_len) {
 
-    return bpf_memicmp(start, val, val_len) == 0;
+    return stricmp(start, val, val_len) == 0;
 }
 
 // Extracts a JSON string value starting at a given position.
