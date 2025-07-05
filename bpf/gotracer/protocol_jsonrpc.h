@@ -59,10 +59,9 @@ static __always_inline u32 json_str_value(const unsigned char *body,
 }
 
 // Compares a JSON value at start with a given value.
-// Returns 1 if equal, 0 otherwise.
-static __always_inline u8 json_value_eq(const char *start, const char *val, u32 val_len) {
+static __always_inline bool json_value_eq(const char *start, const char *val, u32 val_len) {
 
-    return stricmp(start, val, val_len) == 0;
+    return stricmp(start, val, val_len);
 }
 
 // Extracts a JSON string value starting at a given position.
